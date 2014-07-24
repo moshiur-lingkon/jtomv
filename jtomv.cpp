@@ -23,6 +23,7 @@
 #define REACHED_END (m_nPos >= m_JsonString.size())
 #define BACKUP int pos = m_nPos
 #define RESTORE m_npos = pos
+#define SKIP_SPACE while ( !REACHED_END && isspace(m_JsonString[m_npos]) ) ++m_nPos
 
 Json::Json()
 {
@@ -31,8 +32,7 @@ Json::Json()
 
 bool Json::ParseChar(char ch)
 {
-	while ( !REACHED_END && isspace(m_JsonString[m_nPos]) )
-		++m_nPos;
+	SKIP_SPACE;
 	return !REACHED_END && m_JsonString[m_nPos++] == ch;
 }
 
@@ -156,9 +156,7 @@ bool Json::ParseSTRING(Json& res)
 bool Json::ParseBOOLEAN(Json& res)
 {
 	BACKUP;
-	while ( !REACHED_END && isspace(m_JsonString[m_nPos]) )
-		++m_nPos;
-	
+	SKIP_SPACE;	
 
 	std::string token;
 	while ( !REACHED_END && !isspace(m_JsonString[m_nPos]) )
@@ -182,9 +180,7 @@ bool Json::ParseBOOLEAN(Json& res)
 bool Json::ParseINTEGER(Json& res)
 {
 	BACKUP;
-	
-	while ( !REACHED_END && isspace(m_JsonString[m_nPos] )
-		m_JsonString[m_nPos++];	
+	SKIP_SPACE;
 
 	if ( REACHED_END ){
 		RESTORE;
@@ -209,7 +205,10 @@ bool Json::ParseINTEGER(Json& res)
 
 bool Json::ParseDOUBLE(Json& res)
 {
-
+	BACKUP;		
+	SKIP_SPACE;
+	double val = 0.0;
+	if ( m_JsonString[m_nPos] == '.' )
 }
 
 bool Json::ParseJSON(Json& res)
