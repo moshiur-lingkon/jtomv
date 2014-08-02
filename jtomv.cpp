@@ -1,5 +1,8 @@
-#include "JsonVectorMap.h"
-#include <string>
+#include "jtomv.h"
+#include <vector>
+#include <cstdlib>
+
+using namespace std;
 
 /*
  * The CFG for Parsing the Json is described here:
@@ -22,12 +25,134 @@
 
 #define REACHED_END (m_nPos >= m_JsonString.size())
 #define BACKUP int pos = m_nPos
-#define RESTORE m_npos = pos
-#define SKIP_SPACE while ( !REACHED_END && isspace(m_JsonString[m_npos]) ) ++m_nPos
+#define RESTORE m_nPos = pos
+#define CUR_CHAR (m_JsonString[m_nPos]) 
+#define SKIP_SPACE while ( !REACHED_END && isspace(CUR_CHAR) ) ++m_nPos
+
+// NFA for checking double
+struct Edge {
+	int u, v;
+	std::string alpha;
+};
+
+struct Nfa {
+	std::vector<Edge> edgeList;
+	int nodes;
+};
+
+static Nfa double_nfa;
+static bool double_nfa_prepared = false;
+static void prepare_double_nfa()
+{
+#define EDGE(X,Y,s) {E.u=(X);E.v=(Y);E.alpha=s; double_nfa.edgeList.push_back(E);}
+	double_nfa.nodes = 12;
+	Edge E;
+	std::string _digits = "0123456789";
+	EDGE(0,1,"");
+	EDGE(0,1,"-");
+	EDGE(1,2,"0");
+	EDGE(1,5,"123456789");
+	EDGE(2,3,".");
+	EDGE(2,4,"");
+	EDGE(3,3,_digits);
+	EDGE(3,4,"");
+	EDGE(4,6,"");
+	EDGE(4,11,"");
+	EDGE(5,5,_digits);
+	EDGE(5,2,"");
+	EDGE(6,7,"eE");
+	EDGE(7,8,"");
+	EDGE(8,9,"");
+	EDGE(8,9,"+-");
+	EDGE(9,10,"");
+	EDGE(9,10,_digits);
+	EDGE(10,11,"");
+}
+
+static bool Match(const Nfa& nfa, int at, const std::string str, int pos)
+{
+	if (pos == str.size() && at == nfa.nodes -1) return true;	
+	for (int i = 0; i < nfa.edgeList.size(); ++i){
+		if(nfa.edgeList[i].u == at){
+			if(nfa.edgeList[i].alpha.empty()){
+				if(Match(nfa, nfa.edgeList[i].v, str, pos+1)) return true;
+			}	
+			else if(nfa.edgeList[i].alpha.find(str[pos]) != std::string::npos){
+				if(Match(nfa, nfa.edgeList[i].v, str, pos+1)) return true;
+			}
+		}	
+	}
+
+	return false;
+}
 
 Json::Json()
 {
 	
+}
+
+void Json::Clear()
+{
+	switch (m_type){
+		case JSON_TYPE_ARRAY:
+		{
+			vector<Json>* ptr = (vector<Json>*) m_pValue;
+			for (int i = 0; i < ptr->size(); ++i)
+				ptr->at(i).Clear();
+		}
+		break;
+
+		case JSON_TYPE_OBJECT:
+		{
+			map<string,Json>* ptr = (map<string,Json>*) m_pValue;
+			for (map<string,Json>::iterator it = ptr->begin(); it != ptr->end(); ++it)
+				it->second.Clear();
+		}
+		break;
+
+		case JSON_TYPE_STRING:
+		{
+			string* ptr = (string*)m_pValue;
+			delete ptr;
+		}
+		break;
+
+		case JSON_TYPE_BOOLEAN:
+		{
+			bool* ptr = (bool*)m_pValue;
+			delete ptr;
+		}
+		break;
+
+		case JSON_TYPE_INTEGER:
+		{
+			int* ptr = (int*)m_pValue;
+			delete ptr;
+		}
+		break;
+
+		case JSON_TYPE_DOUBLE:
+		{
+			double* ptr = (double*)m_pValue;
+			delete ptr;
+		}
+		break;
+
+		case JSON_TYPE_NULL:
+		{
+		}
+		break;
+
+		case JSON_TYPE_INVALID:
+		{
+		}
+		break;
+	};
+}
+
+Json::~Json()
+{
+	Clear();
 }
 
 bool Json::ParseChar(char ch)
@@ -38,22 +163,22 @@ bool Json::ParseChar(char ch)
 
 bool Json::ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
 {
-	int pos = m_nPos;	
+	BACKUP;
 	std::string key;
-
-	if ( !ParseSTRING(key) ){
-		m_nPos = pos;
+	Json jKey;
+	if ( !ParseSTRING(jKey) ){
+		RESTORE;
 		return false;
 	}
-
+	key = *((string*)jKey.m_pValue);
 	if ( !ParseChar(':') ){
-		m_nPos = pos;
-		return false
+		RESTORE;
+		return false;
 	}
 
 	Json json;
 	if ( !ParseJSON(json) ){
-		m_nPos = pos;
+		RESTORE;
 		return false;
 	}
 
@@ -87,7 +212,7 @@ bool Json::ParseLIST_OF_KEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
 		}
 	}
 
-	if ( !ParseLIST_OF_KEY_VALUE_PAIR() ){
+	if ( !ParseLIST_OF_KEY_VALUE_PAIR(jsonMap) ){
 		jsonMap.clear();
 		RESTORE;
 		return false;
@@ -132,9 +257,9 @@ bool Json::ParseSTRING(Json& res)
 	
 	std::string *str = new string();
 
-	while ( !REACHED_END && !(m_JsonString[m_nPos-1] != '\\' && m_JsonString[m_nPos] == '"') ){	
-		if ( !(m_JsonString[m_nPos] == '\\' && m_nPos+1 < m_JsonString.size() && m_JsonString[m_nPos+1] == '"') ){
-			str->push_back(m_JsonString[m_nPos]);
+	while ( !REACHED_END && !(m_JsonString[m_nPos-1] != '\\' && CUR_CHAR == '"') ){	
+		if ( !(CUR_CHAR == '\\' && m_nPos+1 < m_JsonString.size() && m_JsonString[m_nPos+1] == '"') ){
+			str->push_back(CUR_CHAR);
 		}
 		++m_nPos;
 	}
@@ -159,7 +284,7 @@ bool Json::ParseBOOLEAN(Json& res)
 	SKIP_SPACE;	
 
 	std::string token;
-	while ( !REACHED_END && !isspace(m_JsonString[m_nPos]) )
+	while ( !REACHED_END && !isspace(CUR_CHAR) )
 		token += m_JsonString[m_nPos++];
 	if ( token == "true" ){
 		res.m_type = JSON_TYPE_BOOLEAN;
@@ -188,8 +313,8 @@ bool Json::ParseINTEGER(Json& res)
 	}
 
 	INT64 val = 0;
-	while ( !REACHED_END && '0' <= m_JsonString[m_nPos] && m_JsonString[m_nPos] <= '9' ){
-		val = val * 10 + (m_JsonString[m_nPos] - '0');
+	while ( !REACHED_END && '0' <= CUR_CHAR && CUR_CHAR <= '9' ){
+		val = val * 10 + (CUR_CHAR - '0');
 	}
 
 	if ( REACHED_END ) {
@@ -207,8 +332,43 @@ bool Json::ParseDOUBLE(Json& res)
 {
 	BACKUP;		
 	SKIP_SPACE;
-	double val = 0.0;
-	if ( m_JsonString[m_nPos] == '.' )
+	std::string sToken;	
+	while ( !REACHED_END ) {
+		if ( CUR_CHAR != '+' && CUR_CHAR != '-' && CUR_CHAR != '.' && CUR_CHAR != 'e' && CUR_CHAR != 'E' &&!isdigit(CUR_CHAR) )
+			break;
+		else
+			sToken += CUR_CHAR;
+		++m_nPos;
+	}
+
+	if(!Match(double_nfa, 0, sToken, 0)){
+		RESTORE;
+		return false;
+	}
+
+	res.m_type = JSON_TYPE_DOUBLE;	
+	res.m_pValue = new double(atof(sToken.c_str()));
+
+	return true;
+}
+
+bool Json::ParseNULL(Json& res)
+{
+	BACKUP;
+	SKIP_SPACE;	
+
+	std::string token;
+	while ( !REACHED_END && !isspace(CUR_CHAR) )
+		token += m_JsonString[m_nPos++];
+
+	if(token == "null"){
+		res.m_type = JSON_TYPE_NULL;
+		res.m_pValue = NULL;
+		return true;
+	}
+
+	RESTORE;
+	return false;
 }
 
 bool Json::ParseJSON(Json& res)
@@ -226,10 +386,10 @@ bool Json::ParseJSON(Json& res)
 	if ( ParseBOOLEAN(res) )
 		return true;
 	RESTORE;
-	if ( ParseINTEGER(res) )
+	if ( ParseDOUBLE(res) )
 		return true;
 	RESTORE;
-	if ( ParseDOUBLE(res) )
+	if ( ParseINTEGER(res) )
 		return true;
 	RESTORE;
 	if ( ParseNULL(res) )
@@ -240,6 +400,11 @@ bool Json::ParseJSON(Json& res)
 
 Json::Json(std::string jsonString)
 {
+	if ( !double_nfa_prepared ){
+		prepare_double_nfa();
+		double_nfa_prepared = true;
+	}
+
 	m_nPos = 0;
 	m_type = parsed.first;
 	m_pValue = parsed.second;
