@@ -26,7 +26,7 @@ using namespace std;
 #define REACHED_END (m_nPos >= m_JsonString.size())
 #define BACKUP int pos = m_nPos
 #define RESTORE m_nPos = pos
-#define CUR_CHAR (m_JsonString[m_nPos]) 
+#define CUR_CHAR (m_JsonString[m_nPos])
 #define SKIP_SPACE while ( !REACHED_END && isspace(CUR_CHAR) ) ++m_nPos
 
 // NFA for checking double
@@ -69,18 +69,19 @@ static void prepare_double_nfa()
 	EDGE(10,11,"");
 }
 
-static bool Match(const Nfa& nfa, int at, const std::string str, int pos)
+static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
 {
-	if (pos == str.size() && at == nfa.nodes -1) return true;	
+	if (pos == str.size() && at == nfa.nodes -1) return true;
+
 	for (int i = 0; i < nfa.edgeList.size(); ++i){
 		if(nfa.edgeList[i].u == at){
 			if(nfa.edgeList[i].alpha.empty()){
-				if(Match(nfa, nfa.edgeList[i].v, str, pos+1)) return true;
-			}	
-			else if(nfa.edgeList[i].alpha.find(str[pos]) != std::string::npos){
+				if(Match(nfa, nfa.edgeList[i].v, str, pos)) return true;
+			}
+			else if(pos < str.size() && nfa.edgeList[i].alpha.find(str[pos]) != std::string::npos){
 				if(Match(nfa, nfa.edgeList[i].v, str, pos+1)) return true;
 			}
-		}	
+		}
 	}
 
 	return false;
@@ -88,7 +89,7 @@ static bool Match(const Nfa& nfa, int at, const std::string str, int pos)
 
 Json::Json()
 {
-	
+
 }
 
 void Json::Clear()
@@ -188,9 +189,9 @@ bool Json::ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
 bool Json::ParseLIST_OF_KEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
 {
 	BACKUP;
-	
+
 	if ( ParseChar('}') ){
-		return true;	
+		return true;
 	}
 
 	RESTORE;
@@ -241,7 +242,7 @@ bool Json::ParseJSON_OBJECT(Json& res)
 		return false;
 	}
 
-	res.m_type = JSON_TYPE_OBJECT;			
+	res.m_type = JSON_TYPE_OBJECT;
 	res.m_pValue = jsonMap;
 
 	return true;
@@ -253,11 +254,11 @@ bool Json::ParseSTRING(Json& res)
 	if ( !ParseChar('"') ){
 		RESTORE;
 		return false;
-	}	
-	
+	}
+
 	std::string *str = new string();
 
-	while ( !REACHED_END && !(m_JsonString[m_nPos-1] != '\\' && CUR_CHAR == '"') ){	
+	while ( !REACHED_END && !(m_JsonString[m_nPos-1] != '\\' && CUR_CHAR == '"') ){
 		if ( !(CUR_CHAR == '\\' && m_nPos+1 < m_JsonString.size() && m_JsonString[m_nPos+1] == '"') ){
 			str->push_back(CUR_CHAR);
 		}
@@ -271,7 +272,7 @@ bool Json::ParseSTRING(Json& res)
 	}
 
 	m_nPos++; // skip the ending "
-	
+
 	res.m_type = JSON_TYPE_STRING;
 	res.m_pValue = str;
 
@@ -281,7 +282,7 @@ bool Json::ParseSTRING(Json& res)
 bool Json::ParseBOOLEAN(Json& res)
 {
 	BACKUP;
-	SKIP_SPACE;	
+	SKIP_SPACE;
 
 	std::string token;
 	while ( !REACHED_END && !isspace(CUR_CHAR) )
@@ -295,7 +296,7 @@ bool Json::ParseBOOLEAN(Json& res)
 		res.m_pValue = new bool(false);
 	}
 	else{
-		RESTORE;	
+		RESTORE;
 		return false;
 	}
 
@@ -322,7 +323,7 @@ bool Json::ParseINTEGER(Json& res)
 		return false;
 	}
 
-	res.m_type = JSON_TYPE_INTEGER;	
+	res.m_type = JSON_TYPE_INTEGER;
 	res.m_pValue = new INT64(val);
 
 	return true;
@@ -330,9 +331,9 @@ bool Json::ParseINTEGER(Json& res)
 
 bool Json::ParseDOUBLE(Json& res)
 {
-	BACKUP;		
+	BACKUP;
 	SKIP_SPACE;
-	std::string sToken;	
+	std::string sToken;
 	while ( !REACHED_END ) {
 		if ( CUR_CHAR != '+' && CUR_CHAR != '-' && CUR_CHAR != '.' && CUR_CHAR != 'e' && CUR_CHAR != 'E' &&!isdigit(CUR_CHAR) )
 			break;
@@ -346,7 +347,7 @@ bool Json::ParseDOUBLE(Json& res)
 		return false;
 	}
 
-	res.m_type = JSON_TYPE_DOUBLE;	
+	res.m_type = JSON_TYPE_DOUBLE;
 	res.m_pValue = new double(atof(sToken.c_str()));
 
 	return true;
@@ -355,7 +356,7 @@ bool Json::ParseDOUBLE(Json& res)
 bool Json::ParseNULL(Json& res)
 {
 	BACKUP;
-	SKIP_SPACE;	
+	SKIP_SPACE;
 
 	std::string token;
 	while ( !REACHED_END && !isspace(CUR_CHAR) )
@@ -409,7 +410,7 @@ Json::Json(std::string jsonString)
 	m_type = parsed.first;
 	m_pValue = parsed.second;
 	m_JsonString = jsonString;
-	
+
 	ParsingResult val;
 
 	if ( ParseJSON1(val) ){
