@@ -1,5 +1,6 @@
 #include "jtomv.h"
 #include <vector>
+#include <cstdio>
 #include <cstdlib>
 
 using namespace std;
@@ -89,7 +90,8 @@ static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
 
 Json::Json()
 {
-
+	m_type = JSON_TYPE_INVALID;
+	m_pValue = NULL;
 }
 
 void Json::Clear()
@@ -158,8 +160,8 @@ Json::~Json()
 
 bool Json::ParseChar(char ch)
 {
-	SKIP_SPACE;
-	return !REACHED_END && m_JsonString[m_nPos++] == ch;
+	while ( !REACHED_END && CUR_CHAR != ch ) ++m_nPos;
+	return !REACHED_END; // implies CUR_CHAR == ch
 }
 
 bool Json::ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
@@ -234,11 +236,13 @@ bool Json::ParseJSON_OBJECT(Json& res)
 
 	if ( !ParseLIST_OF_KEY_VALUE_PAIR(*jsonMap) ){
 		RESTORE;
+		delete jsonMap;
 		return false;
 	}
 
 	if( !ParseChar('}') ){
 		RESTORE;
+		delete jsonMap;
 		return false;
 	}
 
@@ -255,7 +259,6 @@ bool Json::ParseSTRING(Json& res)
 		RESTORE;
 		return false;
 	}
-
 	std::string *str = new string();
 
 	while ( !REACHED_END && !(m_JsonString[m_nPos-1] != '\\' && CUR_CHAR == '"') ){
@@ -317,10 +320,10 @@ bool Json::ParseINTEGER(Json& res)
 	while ( !REACHED_END && '0' <= CUR_CHAR && CUR_CHAR <= '9' ){
 		val = val * 10 + (CUR_CHAR - '0');
 	}
-
-	if ( REACHED_END ) {
+	
+	if(pos == m_nPos){
 		RESTORE;
-		return false;
+		return false;	
 	}
 
 	res.m_type = JSON_TYPE_INTEGER;
@@ -387,9 +390,14 @@ bool Json::ParseLIST_OF_JSON(vector<Json>& vjson)
 	}
 	vjson.push_back(json);
 	if(!ParseChar(',')){
-		RESTORE;
-		vjson.clear();
-		return false;
+		if(!ParseChar(']')){
+			RESTORE;
+			vjson.clear();
+			return false;
+		}
+		else{
+			return true;
+		}
 	}	
 	if(!ParseLIST_OF_JSON(vjson)){
 		RESTORE;
@@ -450,6 +458,16 @@ bool Json::ParseJSON(Json& res)
 		return true;
 	RESTORE;
 	return false;
+}
+
+JsonType Json::GetType()
+{
+	return m_type;
+}
+
+void* Json::GetValue()
+{
+	return m_pValue;	
 }
 
 Json::Json(std::string jsonString)
