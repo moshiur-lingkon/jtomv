@@ -2,6 +2,7 @@
 #define __JSON_VECTOR_MAP_H__
 
 #include <map>
+#include <vector>
 #include <string>
 
 typedef long long INT64;
@@ -33,8 +34,9 @@ private:
 	bool ParseINTEGER(Json& res);
 	bool ParseDOUBLE(Json& res);
 	bool ParseNULL(Json& res);
+	bool ParseLIST_OF_JSON(std::vector<Json>& vjson);
+	bool ParseJSON_ARRAY(Json& res);
 	bool ParseJSON(Json& res);
-
 	void Clear();
 
 public:

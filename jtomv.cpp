@@ -372,6 +372,59 @@ bool Json::ParseNULL(Json& res)
 	return false;
 }
 
+bool Json::ParseLIST_OF_JSON(vector<Json>& vjson)
+{
+	BACKUP;
+	if( ParseChar(']') ){
+		RESTORE;
+		return true;
+	}	
+	Json json;			
+	if( !ParseJSON(json) ){
+		RESTORE;
+		vjson.clear();
+		return false;
+	}
+	vjson.push_back(json);
+	if(!ParseChar(',')){
+		RESTORE;
+		vjson.clear();
+		return false;
+	}	
+	if(!ParseLIST_OF_JSON(vjson)){
+		RESTORE;
+		vjson.clear();
+		RESTORE;
+	}
+
+	return true;
+}
+
+bool Json::ParseJSON_ARRAY(Json& res)
+{
+	BACKUP;
+	if( !ParseChar('[')){
+		RESTORE;
+		return false;
+	}
+	vector<Json>* vjson = new vector<Json>();
+	if(!ParseLIST_OF_JSON(*vjson)){
+		delete vjson;
+		RESTORE;
+		return false;
+	}
+
+	if(!ParseChar(']')){
+		delete vjson;
+		RESTORE;
+		return false;
+	}
+
+	res.m_type = JSON_TYPE_ARRAY;
+	res.m_pValue = vjson;
+	return true;
+}
+
 bool Json::ParseJSON(Json& res)
 {
 	BACKUP;
@@ -407,15 +460,11 @@ Json::Json(std::string jsonString)
 	}
 
 	m_nPos = 0;
-	m_type = parsed.first;
-	m_pValue = parsed.second;
 	m_JsonString = jsonString;
 
-	ParsingResult val;
-
-	if ( ParseJSON1(val) ){
-		m_type = val.type;
-		m_pValue = val.val;
+	if ( !ParseJSON(*this) ){
+		m_type = JSON_TYPE_INVALID;
+		m_pValue = NULL;
 	}
 }
 
