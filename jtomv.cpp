@@ -1,7 +1,9 @@
 #include "jtomv.h"
 #include <vector>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <cassert>
 
 using namespace std;
 
@@ -10,8 +12,7 @@ using namespace std;
  * JSON 			= JSON_OBJECT | JSON_ARRAY | STRING | BOOLEAN | INTEGER | DOUBLE | NULL
  * JSON_OBJECT 			= { LIST_OF_KEY_VALUE_PAIR }
  * LIST_OF_KEY_VALUE_PAIR 	= <empty> | KEY_VALUE_PAIR | KEY_VALUE_PAIR , LIST_OF_KEY_VALUE_PAIR
- * KEY_VALUE_PAIR 		= STRING : VALUE
- * VALUE 			= JSON
+ * KEY_VALUE_PAIR 		= STRING : JSON
  * JSON_ARRAY 			= [ LIST_OF_JSON ]
  * LIST_OF_JSON		 	= <empty> | JSON | JSON, LIST_OF_JSON
  * STRING 			= "<list-of-ascii-char>"
@@ -26,6 +27,7 @@ using namespace std;
 
 #define REACHED_END (m_nPos >= m_JsonString.size())
 #define BACKUP int pos = m_nPos
+#define BACKUP2 pos = m_nPos
 #define RESTORE m_nPos = pos
 #define CUR_CHAR (m_JsonString[m_nPos])
 #define SKIP_SPACE while ( !REACHED_END && isspace(CUR_CHAR) ) ++m_nPos
@@ -88,12 +90,6 @@ static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
 	return false;
 }
 
-Json::Json()
-{
-	m_type = JSON_TYPE_INVALID;
-	m_pValue = NULL;
-}
-
 void Json::Clear()
 {
 	switch (m_type){
@@ -129,7 +125,7 @@ void Json::Clear()
 
 		case JSON_TYPE_INTEGER:
 		{
-			int* ptr = (int*)m_pValue;
+			INT64* ptr = (INT64*)m_pValue;
 			delete ptr;
 		}
 		break;
@@ -160,106 +156,88 @@ Json::~Json()
 
 bool Json::ParseChar(char ch)
 {
-	while ( !REACHED_END && CUR_CHAR != ch ) ++m_nPos;
-	return !REACHED_END; // implies CUR_CHAR == ch
+	while ( !REACHED_END && isspace(CUR_CHAR) ) ++m_nPos;
+	if(REACHED_END) return false;		
+	bool ret = CUR_CHAR == ch;
+	++m_nPos;
+	return ret;
 }
 
 bool Json::ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
 {
-	BACKUP;
 	std::string key;
 	Json jKey;
-	if ( !ParseSTRING(jKey) ){
-		RESTORE;
+	if ( !ParseSTRING(&jKey) ){
 		return false;
 	}
 	key = *((string*)jKey.m_pValue);
 	if ( !ParseChar(':') ){
-		RESTORE;
 		return false;
 	}
 
-	Json json;
-	if ( !ParseJSON(json) ){
-		RESTORE;
+	Json* jVal = new Json();
+	if ( !ParseJSON(jVal) ){
+		delete jVal;
 		return false;
 	}
 
-	jsonMap[key] = json;
+	jsonMap[key] = *jVal;
+
+	return true;
 }
 
 bool Json::ParseLIST_OF_KEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap)
 {
 	BACKUP;
-
-	if ( ParseChar('}') ){
+	if ( !ParseKEY_VALUE_PAIR(jsonMap) ){
+		RESTORE;
+		return true;
+	}
+	
+	BACKUP2;
+	if(!ParseChar(',')){
+		RESTORE;
 		return true;
 	}
 
-	RESTORE;
-
-	if ( !ParseKEY_VALUE_PAIR(jsonMap) ){
-		RESTORE;
-		return false;
-	}
-
-	if ( !ParseChar(',') ){
-		RESTORE;
-		if ( !ParseChar('}') ){
-			m_nPos = pos;
-			jsonMap.clear();
-			return false;
-		}
-		else{
-			return true;
-		}
-	}
-
-	if ( !ParseLIST_OF_KEY_VALUE_PAIR(jsonMap) ){
+	if(!ParseLIST_OF_KEY_VALUE_PAIR(jsonMap)){
 		jsonMap.clear();
-		RESTORE;
 		return false;
 	}
 
 	return true;
 }
 
-bool Json::ParseJSON_OBJECT(Json& res)
+bool Json::ParseJSON_OBJECT(Json* res)
 {
-	BACKUP;
 	if ( !ParseChar('{') ){
-		RESTORE;
 		return false;
 	}
 
 	std::map<string, Json> *jsonMap = new std::map<string, Json>();
 
 	if ( !ParseLIST_OF_KEY_VALUE_PAIR(*jsonMap) ){
-		RESTORE;
 		delete jsonMap;
 		return false;
 	}
 
 	if( !ParseChar('}') ){
-		RESTORE;
 		delete jsonMap;
 		return false;
 	}
 
-	res.m_type = JSON_TYPE_OBJECT;
-	res.m_pValue = jsonMap;
+	res->m_type = JSON_TYPE_OBJECT;
+	res->m_pValue = jsonMap;
 
 	return true;
 }
 
-bool Json::ParseSTRING(Json& res)
+bool Json::ParseSTRING(Json* res)
 {
-	BACKUP;
 	if ( !ParseChar('"') ){
-		RESTORE;
 		return false;
 	}
-	std::string *str = new string();
+	std::string *str = new string("");
 
 	while ( !REACHED_END && !(m_JsonString[m_nPos-1] != '\\' && CUR_CHAR == '"') ){
 		if ( !(CUR_CHAR == '\\' && m_nPos+1 < m_JsonString.size() && m_JsonString[m_nPos+1] == '"') ){
@@ -268,73 +246,84 @@ bool Json::ParseSTRING(Json& res)
 		++m_nPos;
 	}
 
-	if ( m_nPos == m_JsonString.size() ){
+	if ( REACHED_END ){
 		delete str;
-		RESTORE;
 		return false;
 	}
 
 	m_nPos++; // skip the ending "
 
-	res.m_type = JSON_TYPE_STRING;
-	res.m_pValue = str;
+	res->m_type = JSON_TYPE_STRING;
+	res->m_pValue = str;
 
 	return true;
 }
 
-bool Json::ParseBOOLEAN(Json& res)
+bool Json::MatchPrefix(const char* str)
 {
-	BACKUP;
+	for (; *str; ++str){
+		if (REACHED_END || CUR_CHAR != *str)
+			return false;
+		++m_nPos;
+	}	
+	return true;
+}
+
+bool Json::ParseBOOLEAN(Json* res)
+{
 	SKIP_SPACE;
 
-	std::string token;
-	while ( !REACHED_END && !isspace(CUR_CHAR) )
-		token += m_JsonString[m_nPos++];
-	if ( token == "true" ){
-		res.m_type = JSON_TYPE_BOOLEAN;
-		res.m_pValue = new bool(true);
+	if (MatchPrefix("true")){
+		res->m_type = JSON_TYPE_BOOLEAN;
+		res->m_pValue = new bool(true);
 	}
-	else if( token == "false" ){
-		res.m_type = JSON_TYPE_BOOLEAN;
-		res.m_pValue = new bool(false);
+	else if(MatchPrefix("false")){
+		res->m_type = JSON_TYPE_BOOLEAN;
+		res->m_pValue = new bool(false);
 	}
 	else{
-		RESTORE;
 		return false;
 	}
 
 	return true;
 }
 
-bool Json::ParseINTEGER(Json& res)
+bool Json::ParseINTEGER(Json* res)
 {
-	BACKUP;
 	SKIP_SPACE;
 
 	if ( REACHED_END ){
-		RESTORE;
 		return false;
 	}
 
-	INT64 val = 0;
-	while ( !REACHED_END && '0' <= CUR_CHAR && CUR_CHAR <= '9' ){
-		val = val * 10 + (CUR_CHAR - '0');
-	}
-	
-	if(pos == m_nPos){
-		RESTORE;
-		return false;	
+	int nBackup = m_nPos;
+	int sign = 1;
+	if(CUR_CHAR == '-'){
+		sign = -1;
+		++m_nPos;
 	}
 
-	res.m_type = JSON_TYPE_INTEGER;
-	res.m_pValue = new INT64(val);
+	BACKUP;
+	INT64 *pnVal = new INT64();
+	*pnVal = 0;
+	while ( !REACHED_END && '0' <= CUR_CHAR && CUR_CHAR <= '9' ){
+		*pnVal = *pnVal * 10 + (CUR_CHAR - '0');
+		++m_nPos;
+	}
+	
+	if(pos == m_nPos){ // at least one digit required
+		delete pnVal;
+		return false;	
+	}
+	*pnVal *= sign;
+	res->m_type = JSON_TYPE_INTEGER;
+	res->m_pValue = pnVal;
 
 	return true;
 }
 
-bool Json::ParseDOUBLE(Json& res)
+bool Json::ParseDOUBLE(Json* res)
 {
-	BACKUP;
 	SKIP_SPACE;
 	std::string sToken;
 	while ( !REACHED_END ) {
@@ -346,94 +335,75 @@ bool Json::ParseDOUBLE(Json& res)
 	}
 
 	if(!Match(double_nfa, 0, sToken, 0)){
-		RESTORE;
 		return false;
 	}
 
-	res.m_type = JSON_TYPE_DOUBLE;
-	res.m_pValue = new double(atof(sToken.c_str()));
+	res->m_type = JSON_TYPE_DOUBLE;
+	res->m_pValue = new double(atof(sToken.c_str()));
 
 	return true;
 }
 
-bool Json::ParseNULL(Json& res)
+bool Json::ParseNULL(Json* res)
 {
-	BACKUP;
 	SKIP_SPACE;
 
-	std::string token;
-	while ( !REACHED_END && !isspace(CUR_CHAR) )
-		token += m_JsonString[m_nPos++];
-
-	if(token == "null"){
-		res.m_type = JSON_TYPE_NULL;
-		res.m_pValue = NULL;
+	if(MatchPrefix("null")){
+		res->m_type = JSON_TYPE_NULL;
+		res->m_pValue = NULL;
 		return true;
 	}
 
-	RESTORE;
 	return false;
 }
 
 bool Json::ParseLIST_OF_JSON(vector<Json>& vjson)
 {
 	BACKUP;
-	if( ParseChar(']') ){
-		RESTORE;
-		return true;
-	}	
-	Json json;			
+
+	Json* json = new Json();			
 	if( !ParseJSON(json) ){
 		RESTORE;
+		delete json;
+		return true;
+	}
+	vjson.push_back(*json);
+	BACKUP2;
+	if(!ParseChar(',')){
+		RESTORE;	
+		return true;
+	}	
+
+	if(!ParseLIST_OF_JSON(vjson)){
 		vjson.clear();
 		return false;
-	}
-	vjson.push_back(json);
-	if(!ParseChar(',')){
-		if(!ParseChar(']')){
-			RESTORE;
-			vjson.clear();
-			return false;
-		}
-		else{
-			return true;
-		}
-	}	
-	if(!ParseLIST_OF_JSON(vjson)){
-		RESTORE;
-		vjson.clear();
-		RESTORE;
 	}
 
 	return true;
 }
 
-bool Json::ParseJSON_ARRAY(Json& res)
+bool Json::ParseJSON_ARRAY(Json* res)
 {
-	BACKUP;
 	if( !ParseChar('[')){
-		RESTORE;
 		return false;
 	}
 	vector<Json>* vjson = new vector<Json>();
 	if(!ParseLIST_OF_JSON(*vjson)){
 		delete vjson;
-		RESTORE;
 		return false;
 	}
 
 	if(!ParseChar(']')){
 		delete vjson;
-		RESTORE;
 		return false;
 	}
 
-	res.m_type = JSON_TYPE_ARRAY;
-	res.m_pValue = vjson;
+	res->m_type = JSON_TYPE_ARRAY;
+	res->m_pValue = vjson;
 	return true;
 }
 
-bool Json::ParseJSON(Json& res)
+bool Json::ParseJSON(Json* res)
 {
 	BACKUP;
 	if ( ParseJSON_OBJECT(res) )
@@ -442,21 +412,25 @@ bool Json::ParseJSON(Json& res)
 	if ( ParseJSON_ARRAY(res) )
 		return true;
 	RESTORE;
-	if ( ParseSTRING(res) )
+	if ( ParseSTRING(res) ){
 		return true;
+	}
 	RESTORE;
 	if ( ParseBOOLEAN(res) )
 		return true;
 	RESTORE;
-	if ( ParseDOUBLE(res) )
+	if ( ParseINTEGER(res) ){
 		return true;
+	}
 	RESTORE;
-	if ( ParseINTEGER(res) )
+	if ( ParseDOUBLE(res) )
 		return true;
 	RESTORE;
 	if ( ParseNULL(res) )
 		return true;
 	RESTORE;
+	res->m_type = JSON_TYPE_INVALID;
+	res->m_pValue = NULL;
 	return false;
 }
 
@@ -470,6 +444,86 @@ void* Json::GetValue()
 	return m_pValue;	
 }
 
+Json::Json()
+{
+	m_type = JSON_TYPE_INVALID;
+	m_pValue = NULL;
+}
+
+void Json::DeepCopy(const Json& obj)
+{
+	m_type = obj.m_type;
+	switch(obj.m_type){
+		case JSON_TYPE_ARRAY:
+			{
+				vector<Json>* v = new vector<Json>();
+				*v = *((vector<Json>*)obj.m_pValue);
+				m_pValue = v;
+			}
+			break;
+		case JSON_TYPE_OBJECT:
+			{
+				map<string,Json>* m = new map<string,Json>();
+				*m = *((map<string,Json>*)obj.m_pValue);
+				m_pValue = m;
+			}
+			break;
+		case JSON_TYPE_STRING:
+			{
+				string* s = new string();
+				*s = *((string*)obj.m_pValue);
+				m_pValue = s;
+			}
+			break;
+		case JSON_TYPE_BOOLEAN:
+			{
+				bool *b = new bool();
+				*b = *((bool*)obj.m_pValue);
+				m_pValue = b;
+			}
+			break;
+		case JSON_TYPE_INTEGER:
+			{
+				INT64* n = new INT64();
+				*n = *((INT64*)obj.m_pValue);
+				m_pValue = n;
+			}
+			break;
+		case JSON_TYPE_DOUBLE:
+			{
+				double* d = new double();
+				*d = *((double*)obj.m_pValue);
+				m_pValue = d;
+			}
+			break;
+		case JSON_TYPE_NULL:
+			{
+				m_pValue = NULL;
+			}
+			break;
+		case JSON_TYPE_INVALID:
+			{
+				m_pValue = NULL;
+			}
+			break;
+	}
+}
+
+Json::Json(const Json& obj)
+{
+	if(this != &obj){
+		DeepCopy(obj);
+	}
+}
+
+Json& Json::operator = (const Json& obj)
+{
+	if(this != &obj){
+		DeepCopy(obj);
+	}
+	return *this;
+}
+
 Json::Json(std::string jsonString)
 {
 	if ( !double_nfa_prepared ){
@@ -479,10 +533,116 @@ Json::Json(std::string jsonString)
 
 	m_nPos = 0;
 	m_JsonString = jsonString;
-
-	if ( !ParseJSON(*this) ){
+	
+	Json* json = new Json();
+	if ( !ParseJSON(json) ){
+		delete json;
 		m_type = JSON_TYPE_INVALID;
 		m_pValue = NULL;
+	}
+	else{
+		m_type = json->m_type;
+		m_pValue = json->m_pValue;
+	}
+
+	SKIP_SPACE;
+	if(!REACHED_END){
+		Clear();
+		m_type = JSON_TYPE_INVALID;
+		m_pValue = NULL;
+	}
+}
+
+void Json::ToStr(std::string& str)
+{
+	switch (m_type){
+		case JSON_TYPE_ARRAY:
+		{
+			str.push_back('[');
+			vector<Json>* v = (vector<Json>*)m_pValue;
+			bool flag = false;
+			for (vector<Json>::iterator it = v->begin(); it != v->end(); ++it){
+				if(flag) str.push_back(',');
+				it->ToStr(str);
+				flag = true;
+			}
+			str.push_back(']');
+			break;
+		}
+
+		case JSON_TYPE_OBJECT:
+		{
+			str.push_back('{');
+			map<string,Json>* m = (map<string,Json>*)m_pValue;
+			bool flag = false;
+			for(map<string,Json>::iterator it=m->begin(); it!=m->end(); ++it){
+				if(flag) str.push_back(',');
+				str += "\"" + it->first + "\"";
+				str.push_back(':');
+				it->second.ToStr(str);
+				flag = true;
+			}	
+			str.push_back('}');	
+			break;
+		}
+
+		case JSON_TYPE_STRING:
+		{
+			str.push_back('"');
+			str += *((string*)m_pValue);
+			str.push_back('"');
+			break;
+		}
+
+		case JSON_TYPE_BOOLEAN:
+		{
+			if(*((bool*)m_pValue))
+				str += "true";
+			else
+				str += "false";
+			break;
+		}
+
+		case JSON_TYPE_INTEGER:
+		{
+			INT64 n = *((INT64*)m_pValue);
+			int sign = 1;
+			if(n < 0){
+				sign = -1;
+				n = -n;
+			}
+
+			string buff = "";
+			if(n == 0) buff.push_back('0');
+			while (n > 0){
+				buff.push_back('0' + n%10);
+				n /= 10;
+			}
+			if(sign == -1) buff.push_back('-');
+			reverse(buff.begin(), buff.end());
+			str += buff;
+			break;
+		}
+
+		case JSON_TYPE_DOUBLE:
+		{
+			char buff[32];
+			sprintf(buff, "%lf", *((double*)m_pValue));
+			str += buff;
+			break;
+		}
+
+		case JSON_TYPE_NULL:
+		{
+			str += "null";
+			break;
+		}
+
+		case JSON_TYPE_INVALID:
+		{
+			str = "invalid";
+			break;
+		}
 	}
 }
 

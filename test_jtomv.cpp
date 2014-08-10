@@ -20,37 +20,45 @@
 
 using namespace std;
 
-int test_count = 0;
-
-bool __assert_passed(const char* msg, bool cond)
+void PrintJson(Json& json)
 {
-	if(cond){
-		printf("TEST#%d PASSED:[%s]\n", ++test_count, msg);
+	string desc = "";
+	json.ToStr(desc);
+	puts(desc.c_str());
+}
+
+void test1()
+{
+	const char* str = "[345, 3455]";	
+	Json json(str);
+	PrintJson(json);
+
+	Json json2("\"abcd\"");
+	PrintJson(json2);	
+
+	vector<Json>* v = (vector<Json>*)json.m_pValue;	
+	v->push_back(json2);
+
+	PrintJson(json);
+}
+
+void manual_test()
+{
+	char buff[1024];
+	while(true){
+		gets(buff);
+		if(strcmp(buff,"exit")) break;
+
+		Json json(buff);
+		string str;
+		json.ToStr(str);
+		printf("%s\n",str.c_str());
 	}
-
-	return cond;
 }
-
-void __assert_failed(const char* msg)
-{
-	printf("TEST#%d FAILED:[%s]\n", ++test_count, msg);
-}
-
-#define ASSERT(EX) (__assert_passed(#EX, (EX)) || (__assert_failed(#EX),0))
 
 int main() {
-	const char* str = "{\"key1\" : \"value1\"  }";
-	Json json(str);		
-	Json json2("\"abcd\"");	
-	printf("%d\n", json2.GetType());
-	ASSERT(json2.GetType() == JSON_TYPE_STRING);
-	printf("%d\n", json.GetType());
-	ASSERT(json.GetType() == JSON_TYPE_OBJECT);
-	map<string, Json> m = *((map<string,Json>*)json.GetValue());	
-	printf("m.size() = %d\n", m.size());
-
-	//string s = *((string*)m["key1"].GetValue());
-	//cout<<s<<endl;
+	test1();
+	manual_test();
 	return 0;
 }
 

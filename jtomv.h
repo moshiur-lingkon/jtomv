@@ -20,6 +20,7 @@ typedef enum {
 
 class Json {
 private:
+public:
 	JsonType m_type;
 	void* m_pValue;	
 	int m_nPos;
@@ -28,24 +29,29 @@ private:
 	bool ParseChar(char ch);
 	bool ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap);
 	bool ParseLIST_OF_KEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap);
-	bool ParseJSON_OBJECT(Json& res);
-	bool ParseSTRING(Json& res);
-	bool ParseBOOLEAN(Json& res);
-	bool ParseINTEGER(Json& res);
-	bool ParseDOUBLE(Json& res);
-	bool ParseNULL(Json& res);
+	bool ParseJSON_OBJECT(Json* res);
+	bool ParseSTRING(Json* res);
+	bool ParseBOOLEAN(Json* res);
+	bool ParseINTEGER(Json* res);
+	bool ParseDOUBLE(Json* res);
+	bool ParseNULL(Json* res);
 	bool ParseLIST_OF_JSON(std::vector<Json>& vjson);
-	bool ParseJSON_ARRAY(Json& res);
-	bool ParseJSON(Json& res);
+	bool ParseJSON_ARRAY(Json* res);
+	bool ParseJSON(Json* res);
+	bool MatchPrefix(const char* str);
 	void Clear();
+	void DeepCopy(const Json& obj);
 
 public:
 	virtual ~Json();
 	Json();
+	Json(const Json& obj);
+	Json& operator = (const Json& obj);
 	Json(std::string jsonString);
 
 	JsonType GetType();
 	void* GetValue();
+	void ToStr(std::string& str);
 };
 
 #endif // __JSON_VECTOR_MAP_H__
