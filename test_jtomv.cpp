@@ -33,10 +33,10 @@ void test1()
 	Json json(str);
 	PrintJson(json);
 
-	Json json2("\"abcd\"");
+	Json json2("[\"abcd\", {\"xyz\": null  }, 645645, 34.34e3   ]");
 	PrintJson(json2);	
 
-	vector<Json>* v = (vector<Json>*)json.m_pValue;	
+	vector<Json>* v = json.GetVector();
 	v->push_back(json2);
 
 	PrintJson(json);
@@ -47,7 +47,7 @@ void manual_test()
 	char buff[1024];
 	while(true){
 		gets(buff);
-		if(strcmp(buff,"exit")) break;
+		if(strcmp(buff,"exit") == 0) break;
 
 		Json json(buff);
 		string str;

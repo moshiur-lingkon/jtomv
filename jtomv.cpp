@@ -74,7 +74,9 @@ static void prepare_double_nfa()
 
 static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
 {
-	if (pos == str.size() && at == nfa.nodes -1) return true;
+	if (pos == str.size() && at == nfa.nodes - 1){
+		return true;
+	}
 
 	for (int i = 0; i < nfa.edgeList.size(); ++i){
 		if(nfa.edgeList[i].u == at){
@@ -93,7 +95,7 @@ static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
 void Json::Clear()
 {
 	switch (m_type){
-		case JSON_TYPE_ARRAY:
+		case JSON_TYPE_VECTOR:
 		{
 			vector<Json>* ptr = (vector<Json>*) m_pValue;
 			for (int i = 0; i < ptr->size(); ++i)
@@ -101,7 +103,7 @@ void Json::Clear()
 		}
 		break;
 
-		case JSON_TYPE_OBJECT:
+		case JSON_TYPE_MAP:
 		{
 			map<string,Json>* ptr = (map<string,Json>*) m_pValue;
 			for (map<string,Json>::iterator it = ptr->begin(); it != ptr->end(); ++it)
@@ -116,14 +118,14 @@ void Json::Clear()
 		}
 		break;
 
-		case JSON_TYPE_BOOLEAN:
+		case JSON_TYPE_BOOL:
 		{
 			bool* ptr = (bool*)m_pValue;
 			delete ptr;
 		}
 		break;
 
-		case JSON_TYPE_INTEGER:
+		case JSON_TYPE_INT:
 		{
 			INT64* ptr = (INT64*)m_pValue;
 			delete ptr;
@@ -159,7 +161,8 @@ bool Json::ParseChar(char ch)
 	while ( !REACHED_END && isspace(CUR_CHAR) ) ++m_nPos;
 	if(REACHED_END) return false;		
 	bool ret = CUR_CHAR == ch;
-	++m_nPos;
+	if(ret)
+		++m_nPos;
 	return ret;
 }
 
@@ -226,7 +229,7 @@ bool Json::ParseJSON_OBJECT(Json* res)
 		return false;
 	}
 
-	res->m_type = JSON_TYPE_OBJECT;
+	res->m_type = JSON_TYPE_MAP;
 	res->m_pValue = jsonMap;
 
 	return true;
@@ -274,11 +277,11 @@ bool Json::ParseBOOLEAN(Json* res)
 	SKIP_SPACE;
 
 	if (MatchPrefix("true")){
-		res->m_type = JSON_TYPE_BOOLEAN;
+		res->m_type = JSON_TYPE_BOOL;
 		res->m_pValue = new bool(true);
 	}
 	else if(MatchPrefix("false")){
-		res->m_type = JSON_TYPE_BOOLEAN;
+		res->m_type = JSON_TYPE_BOOL;
 		res->m_pValue = new bool(false);
 	}
 	else{
@@ -315,8 +318,13 @@ bool Json::ParseINTEGER(Json* res)
 		delete pnVal;
 		return false;	
 	}
+
+	if(CUR_CHAR == '.' || CUR_CHAR == 'e' || CUR_CHAR == 'E') { // it's probably a double
+		delete pnVal;
+		return false;
+	}
 	*pnVal *= sign;
-	res->m_type = JSON_TYPE_INTEGER;
+	res->m_type = JSON_TYPE_INT;
 	res->m_pValue = pnVal;
 
 	return true;
@@ -324,16 +332,20 @@ bool Json::ParseINTEGER(Json* res)
 
 bool Json::ParseDOUBLE(Json* res)
 {
+	if ( !double_nfa_prepared ){
+		prepare_double_nfa();
+		double_nfa_prepared = true;
+	}
+
 	SKIP_SPACE;
 	std::string sToken;
 	while ( !REACHED_END ) {
-		if ( CUR_CHAR != '+' && CUR_CHAR != '-' && CUR_CHAR != '.' && CUR_CHAR != 'e' && CUR_CHAR != 'E' &&!isdigit(CUR_CHAR) )
+		if ( CUR_CHAR != '+' && CUR_CHAR != '-' && CUR_CHAR != '.' && CUR_CHAR != 'e' && CUR_CHAR != 'E' && !isdigit(CUR_CHAR) )
 			break;
 		else
 			sToken += CUR_CHAR;
 		++m_nPos;
 	}
-
 	if(!Match(double_nfa, 0, sToken, 0)){
 		return false;
 	}
@@ -375,6 +387,7 @@ bool Json::ParseLIST_OF_JSON(vector<Json>& vjson)
 	}	
 
 	if(!ParseLIST_OF_JSON(vjson)){
+		delete json;
 		vjson.clear();
 		return false;
 	}
@@ -398,7 +411,7 @@ bool Json::ParseJSON_ARRAY(Json* res)
 		return false;
 	}
 
-	res->m_type = JSON_TYPE_ARRAY;
+	res->m_type = JSON_TYPE_VECTOR;
 	res->m_pValue = vjson;
 	return true;
 }
@@ -439,9 +452,34 @@ JsonType Json::GetType()
 	return m_type;
 }
 
-void* Json::GetValue()
+std::vector<Json>* Json::GetVector()
 {
-	return m_pValue;	
+	return m_type == JSON_TYPE_VECTOR ? (std::vector<Json>*)m_pValue : NULL;
+}
+
+std::map<std::string, Json>* Json::GetMap()
+{
+	return m_type == JSON_TYPE_NULL ? (std::map<std::string, Json>*)m_pValue : NULL;
+}
+
+std::string* Json::GetString()
+{
+	return m_type == JSON_TYPE_STRING ? (std::string*)m_pValue : NULL;
+}
+
+bool* Json::GetBool()
+{
+	return m_type == JSON_TYPE_BOOL ? (bool*)m_pValue : NULL;
+}
+
+INT64* Json::GetInt()
+{
+	return m_type == JSON_TYPE_INT ? (INT64*)m_pValue : NULL;
+}
+
+double* Json::GetDouble()
+{
+	return m_type == JSON_TYPE_DOUBLE ? (double*)m_pValue : NULL;
 }
 
 Json::Json()
@@ -454,14 +492,14 @@ void Json::DeepCopy(const Json& obj)
 {
 	m_type = obj.m_type;
 	switch(obj.m_type){
-		case JSON_TYPE_ARRAY:
+		case JSON_TYPE_VECTOR:
 			{
 				vector<Json>* v = new vector<Json>();
 				*v = *((vector<Json>*)obj.m_pValue);
 				m_pValue = v;
 			}
 			break;
-		case JSON_TYPE_OBJECT:
+		case JSON_TYPE_MAP:
 			{
 				map<string,Json>* m = new map<string,Json>();
 				*m = *((map<string,Json>*)obj.m_pValue);
@@ -475,14 +513,14 @@ void Json::DeepCopy(const Json& obj)
 				m_pValue = s;
 			}
 			break;
-		case JSON_TYPE_BOOLEAN:
+		case JSON_TYPE_BOOL:
 			{
 				bool *b = new bool();
 				*b = *((bool*)obj.m_pValue);
 				m_pValue = b;
 			}
 			break;
-		case JSON_TYPE_INTEGER:
+		case JSON_TYPE_INT:
 			{
 				INT64* n = new INT64();
 				*n = *((INT64*)obj.m_pValue);
@@ -526,11 +564,6 @@ Json& Json::operator = (const Json& obj)
 
 Json::Json(std::string jsonString)
 {
-	if ( !double_nfa_prepared ){
-		prepare_double_nfa();
-		double_nfa_prepared = true;
-	}
-
 	m_nPos = 0;
 	m_JsonString = jsonString;
 	
@@ -556,7 +589,7 @@ Json::Json(std::string jsonString)
 void Json::ToStr(std::string& str)
 {
 	switch (m_type){
-		case JSON_TYPE_ARRAY:
+		case JSON_TYPE_VECTOR:
 		{
 			str.push_back('[');
 			vector<Json>* v = (vector<Json>*)m_pValue;
@@ -570,7 +603,7 @@ void Json::ToStr(std::string& str)
 			break;
 		}
 
-		case JSON_TYPE_OBJECT:
+		case JSON_TYPE_MAP:
 		{
 			str.push_back('{');
 			map<string,Json>* m = (map<string,Json>*)m_pValue;
@@ -594,7 +627,7 @@ void Json::ToStr(std::string& str)
 			break;
 		}
 
-		case JSON_TYPE_BOOLEAN:
+		case JSON_TYPE_BOOL:
 		{
 			if(*((bool*)m_pValue))
 				str += "true";
@@ -603,7 +636,7 @@ void Json::ToStr(std::string& str)
 			break;
 		}
 
-		case JSON_TYPE_INTEGER:
+		case JSON_TYPE_INT:
 		{
 			INT64 n = *((INT64*)m_pValue);
 			int sign = 1;
@@ -626,7 +659,7 @@ void Json::ToStr(std::string& str)
 
 		case JSON_TYPE_DOUBLE:
 		{
-			char buff[32];
+			char buff[64];
 			sprintf(buff, "%lf", *((double*)m_pValue));
 			str += buff;
 			break;

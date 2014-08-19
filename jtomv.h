@@ -8,11 +8,11 @@
 typedef long long INT64;
 
 typedef enum {
-	JSON_TYPE_ARRAY, // std::vector<Json> 
-	JSON_TYPE_OBJECT, // std::map<std::string, Json> 
+	JSON_TYPE_VECTOR, // std::vector<Json> 
+	JSON_TYPE_MAP, // std::map<std::string, Json> 
 	JSON_TYPE_STRING, // std::string
-	JSON_TYPE_BOOLEAN, 
-	JSON_TYPE_INTEGER,
+	JSON_TYPE_BOOL, 
+	JSON_TYPE_INT,
 	JSON_TYPE_DOUBLE,
 	JSON_TYPE_NULL,
 	JSON_TYPE_INVALID
@@ -20,7 +20,6 @@ typedef enum {
 
 class Json {
 private:
-public:
 	JsonType m_type;
 	void* m_pValue;	
 	int m_nPos;
@@ -50,7 +49,15 @@ public:
 	Json(std::string jsonString);
 
 	JsonType GetType();
-	void* GetValue();
+	
+	// the following 6 functions returns NULL if the type of the json doesn't match
+	std::vector<Json>* GetVector();
+	std::map<std::string, Json>* GetMap();
+	std::string* GetString();
+	bool* GetBool();
+	INT64* GetInt();
+	double* GetDouble();
+
 	void ToStr(std::string& str);
 };
 
