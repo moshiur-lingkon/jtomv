@@ -30,7 +30,7 @@ Json(std::string jsonString)
 
 To get the type of the object it holds, it has:
 ```CPP
-	JsonType GetType();
+JsonType GetType();
 ```
 Where JsonType is:
 ```CPP
@@ -61,3 +61,4 @@ To serialize the json into a string, it has:
 	void ToStr(std::string& str);
 ```
 
+<b>If you make any valid change in the underlying object, the output of *ToStr()* will reflect it.</b>
