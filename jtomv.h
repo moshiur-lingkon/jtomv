@@ -18,47 +18,49 @@ typedef enum {
 	JSON_TYPE_INVALID
 } JsonType;
 
-class Json {
-private:
-	JsonType m_type;
-	void* m_pValue;	
-	int m_nPos;
-	std::string m_JsonString;	
+namespace jtomv {
+	class Json {
+	private:
+		JsonType m_type;
+		void* m_pValue;	
+		int m_nPos;
+		std::string m_JsonString;	
 
-	bool ParseChar(char ch);
-	bool ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap);
-	bool ParseLIST_OF_KEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap);
-	bool ParseJSON_OBJECT(Json* res);
-	bool ParseSTRING(Json* res);
-	bool ParseBOOLEAN(Json* res);
-	bool ParseINTEGER(Json* res);
-	bool ParseDOUBLE(Json* res);
-	bool ParseNULL(Json* res);
-	bool ParseLIST_OF_JSON(std::vector<Json>& vjson);
-	bool ParseJSON_ARRAY(Json* res);
-	bool ParseJSON(Json* res);
-	bool MatchPrefix(const char* str);
-	void Clear();
-	void DeepCopy(const Json& obj);
+		bool ParseChar(char ch);
+		bool ParseKEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap);
+		bool ParseLIST_OF_KEY_VALUE_PAIR(std::map<std::string, Json>& jsonMap);
+		bool ParseJSON_OBJECT(Json* res);
+		bool ParseSTRING(Json* res);
+		bool ParseBOOLEAN(Json* res);
+		bool ParseINTEGER(Json* res);
+		bool ParseDOUBLE(Json* res);
+		bool ParseNULL(Json* res);
+		bool ParseLIST_OF_JSON(std::vector<Json>& vjson);
+		bool ParseJSON_ARRAY(Json* res);
+		bool ParseJSON(Json* res);
+		bool MatchPrefix(const char* str);
+		void Clear();
+		void DeepCopy(const Json& obj);
 
-public:
-	virtual ~Json();
-	Json();
-	Json(const Json& obj);
-	Json& operator = (const Json& obj);
-	Json(std::string jsonString);
+	public:
+		virtual ~Json();
+		Json();
+		Json(const Json& obj);
+		Json& operator = (const Json& obj);
+		Json(std::string jsonString);
 
-	JsonType GetType();
-	
-	// the following 6 functions returns NULL if the type of the json doesn't match
-	std::vector<Json>* GetVector();
-	std::map<std::string, Json>* GetMap();
-	std::string* GetString();
-	bool* GetBool();
-	INT64* GetInt();
-	double* GetDouble();
+		JsonType GetType();
+		
+		// the following 6 functions returns NULL if the type of the json doesn't match
+		std::vector<Json>* GetVector();
+		std::map<std::string, Json>* GetMap();
+		std::string* GetString();
+		bool* GetBool();
+		INT64* GetInt();
+		double* GetDouble();
 
-	void ToStr(std::string& str);
-};
+		void ToStr(std::string& str);
+	};
+}
 
 #endif // __JSON_VECTOR_MAP_H__

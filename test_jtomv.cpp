@@ -19,6 +19,7 @@
 #include "jtomv.h"
 
 using namespace std;
+using namespace jtomv;
 
 void PrintJson(Json& json)
 {
