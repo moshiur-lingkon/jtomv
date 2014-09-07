@@ -34,44 +34,46 @@ using namespace jtomv;
 #define SKIP_SPACE while ( !REACHED_END && isspace(CUR_CHAR) ) ++m_nPos
 
 // NFA for checking double
-struct Edge {
-	int u, v;
-	std::string alpha;
-};
+namespace jtomv{
+	struct Edge {
+		int u, v;
+		std::string alpha;
+	};
 
-struct Nfa {
-	std::vector<Edge> edgeList;
-	int nodes;
-};
+	struct Nfa {
+		std::vector<Edge> edgeList;
+		int nodes;
+	};
 
-static Nfa double_nfa;
-static bool double_nfa_prepared = false;
-static void prepare_double_nfa()
-{
+	static Nfa double_nfa;
+	static bool double_nfa_prepared = false;
+	static void prepare_double_nfa()
+	{
 #define EDGE(X,Y,s) {E.u=(X);E.v=(Y);E.alpha=s; double_nfa.edgeList.push_back(E);}
-	double_nfa.nodes = 12;
-	Edge E;
-	std::string _digits = "0123456789";
-	EDGE(0,1,"");
-	EDGE(0,1,"-");
-	EDGE(1,2,"0");
-	EDGE(1,5,"123456789");
-	EDGE(2,3,".");
-	EDGE(2,4,"");
-	EDGE(3,3,_digits);
-	EDGE(3,4,"");
-	EDGE(4,6,"");
-	EDGE(4,11,"");
-	EDGE(5,5,_digits);
-	EDGE(5,2,"");
-	EDGE(6,7,"eE");
-	EDGE(7,8,"");
-	EDGE(8,9,"");
-	EDGE(8,9,"+-");
-	EDGE(9,10,"");
-	EDGE(9,10,_digits);
-	EDGE(10,11,"");
-}
+		double_nfa.nodes = 12;
+		Edge E;
+		std::string _digits = "0123456789";
+		EDGE(0,1,"");
+		EDGE(0,1,"-");
+		EDGE(1,2,"0");
+		EDGE(1,5,"123456789");
+		EDGE(2,3,".");
+		EDGE(2,4,"");
+		EDGE(3,3,_digits);
+		EDGE(3,4,"");
+		EDGE(4,6,"");
+		EDGE(4,11,"");
+		EDGE(5,5,_digits);
+		EDGE(5,2,"");
+		EDGE(6,7,"eE");
+		EDGE(7,8,"");
+		EDGE(8,9,"");
+		EDGE(8,9,"+-");
+		EDGE(9,10,"");
+		EDGE(9,10,_digits);
+		EDGE(10,11,"");
+	}
+};
 
 static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
 {
