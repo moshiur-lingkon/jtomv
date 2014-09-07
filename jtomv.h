@@ -7,18 +7,18 @@
 
 typedef long long INT64;
 
-typedef enum {
-	JSON_TYPE_VECTOR, // std::vector<Json> 
-	JSON_TYPE_MAP, // std::map<std::string, Json> 
-	JSON_TYPE_STRING, // std::string
-	JSON_TYPE_BOOL, 
-	JSON_TYPE_INT,
-	JSON_TYPE_DOUBLE,
-	JSON_TYPE_NULL,
-	JSON_TYPE_INVALID
-} JsonType;
-
 namespace jtomv {
+	typedef enum {
+		JSON_TYPE_VECTOR, // std::vector<Json> 
+		JSON_TYPE_MAP, // std::map<std::string, Json> 
+		JSON_TYPE_STRING, // std::string
+		JSON_TYPE_BOOL, 
+		JSON_TYPE_INT,
+		JSON_TYPE_DOUBLE,
+		JSON_TYPE_NULL,
+		JSON_TYPE_INVALID
+	} JsonType;
+
 	class Json {
 	private:
 		JsonType m_type;

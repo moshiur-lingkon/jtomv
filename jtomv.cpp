@@ -73,27 +73,28 @@ namespace jtomv{
 		EDGE(9,10,_digits);
 		EDGE(10,11,"");
 	}
-};
 
-static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
-{
-	if (pos == str.size() && at == nfa.nodes - 1){
-		return true;
-	}
+	static bool Match(const Nfa& nfa, int at, const std::string& str, int pos)
+	{
+		if (pos == str.size() && at == nfa.nodes - 1){
+			return true;
+		}
 
-	for (int i = 0; i < nfa.edgeList.size(); ++i){
-		if(nfa.edgeList[i].u == at){
-			if(nfa.edgeList[i].alpha.empty()){
-				if(Match(nfa, nfa.edgeList[i].v, str, pos)) return true;
-			}
-			else if(pos < str.size() && nfa.edgeList[i].alpha.find(str[pos]) != std::string::npos){
-				if(Match(nfa, nfa.edgeList[i].v, str, pos+1)) return true;
+		for (int i = 0; i < nfa.edgeList.size(); ++i){
+			if(nfa.edgeList[i].u == at){
+				if(nfa.edgeList[i].alpha.empty()){
+					if(Match(nfa, nfa.edgeList[i].v, str, pos)) return true;
+				}
+				else if(pos < str.size() && nfa.edgeList[i].alpha.find(str[pos]) != std::string::npos){
+					if(Match(nfa, nfa.edgeList[i].v, str, pos+1)) return true;
+				}
 			}
 		}
-	}
 
-	return false;
-}
+		return false;
+	}
+};
+
 
 void Json::Clear()
 {
