@@ -62,3 +62,10 @@ To serialize the json into a string, it has:
 ```
 
 <b>If you make any valid change in the underlying object, the output of *ToStr()* will reflect it.</b>
+
+Notes for the user:
+-------------------
+<ol>
+<li> I wrote jtomv just because I didn't want my git profile to be empty. This means, this was not written by someone motivated to solve a problem. </li>
+<li> jtomv was not designed to be fast, but it shouldn't be too slow. </li>
+</ol>
